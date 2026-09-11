@@ -1,12 +1,12 @@
-# Python virtual environment
 .venv/
-
-# Python cache
 __pycache__/
 *.pyc
 
-# Environment variables
 .env
+.env.*
+!.env.example
 
-# macOS
+.pytest_cache/
+.coverage
+
 .DS_Store

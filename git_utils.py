@@ -3,6 +3,9 @@
 import subprocess
 
 
+_GIT_COMMAND_TIMEOUT_SECONDS = 10
+
+
 def _run_git_command(command: list[str]) -> str:
     """Git 명령어를 실행하고 표준 출력을 반환한다.
 
@@ -13,7 +16,7 @@ def _run_git_command(command: list[str]) -> str:
         Git 명령어의 표준 출력.
 
     Raises:
-        RuntimeError: Git 명령어 실행에 실패한 경우.
+        RuntimeError: Git 실행 파일이 없거나 명령 실행에 실패한 경우.
     """
     try:
         result = subprocess.run(
@@ -21,9 +24,14 @@ def _run_git_command(command: list[str]) -> str:
             capture_output=True,
             text=True,
             check=True,
+            timeout=_GIT_COMMAND_TIMEOUT_SECONDS,
         )
+    except FileNotFoundError as error:
+        raise RuntimeError("Git이 설치되어 있지 않습니다.") from error
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError("Git 명령 실행 시간이 초과되었습니다.") from error
     except subprocess.CalledProcessError as error:
-        error_message = error.stderr.strip()
+        error_message = error.stderr.strip() or error.stdout.strip()
         raise RuntimeError(
             f"Git 명령 실행에 실패했습니다: {error_message}"
         ) from error
@@ -38,13 +46,11 @@ def is_git_repository() -> bool:
         Git 저장소이면 True, 아니면 False.
     """
     try:
-        result = _run_git_command(
-            ["git", "rev-parse", "--is-inside-work-tree"]
-        )
+        _run_git_command(["git", "status", "--short"])
     except RuntimeError:
         return False
 
-    return result == "true"
+    return True
 
 
 def get_git_status() -> str:
