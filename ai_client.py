@@ -47,6 +47,7 @@ def call_ai_api(
     Raises:
         RuntimeError: API 호출 또는 응답 처리에 실패한 경우.
     """
+
     api_key = _get_api_key()
 
     try:
@@ -63,12 +64,10 @@ def call_ai_api(
                         "content": prompt,
                     }
                 ],
-                "temperature": temperature,
                 "max_tokens": max_tokens,
             },
             timeout=60,
         )
-
         response.raise_for_status()
     except requests.RequestException as error:
         raise RuntimeError(

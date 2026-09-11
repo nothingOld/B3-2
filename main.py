@@ -9,7 +9,16 @@ from git_utils import (
     get_unstaged_diff,
     is_git_repository,
 )
-from prompts import build_commit_prompt, build_pr_prompt
+from prompts import (
+    build_commit_prompt,
+    build_correction_prompt,
+    build_pr_prompt,
+)
+from validators import (
+    parse_commit_result,
+    parse_pr_result,
+    validate_result,
+)
 
 
 DEFAULT_MODEL = "gpt-5-mini"
@@ -87,6 +96,104 @@ def build_prompt(
     )
 
 
+def generate_result(
+    args: argparse.Namespace,
+    prompt: str,
+) -> str:
+    """AI 결과를 생성하고 형식을 검증한다.
+
+    Args:
+        args: CLI 인자.
+        prompt: 최초 생성 프롬프트.
+
+    Returns:
+        형식 검증을 통과한 AI 생성 결과.
+
+    Raises:
+        RuntimeError: 두 번째 생성 결과도 검증에 실패한 경우.
+    """
+    print("[INFO] AI API 요청 1/2")
+
+    result = call_ai_api(
+        prompt=prompt,
+        model=args.model,
+        temperature=args.temperature,
+        max_tokens=args.max_tokens,
+    )
+
+    errors = validate_result(
+        args.command,
+        result,
+    )
+
+    if not errors:
+        return result
+
+    print("[WARN] 생성 결과 형식 검증 실패")
+    print("[INFO] AI API 재요청 2/2")
+
+    correction_prompt = build_correction_prompt(
+        args.command,
+        result,
+        errors,
+    )
+
+    corrected_result = call_ai_api(
+        prompt=correction_prompt,
+        model=args.model,
+        temperature=args.temperature,
+        max_tokens=args.max_tokens,
+    )
+
+    remaining_errors = validate_result(
+        args.command,
+        corrected_result,
+    )
+
+    if remaining_errors:
+        error_message = ", ".join(remaining_errors)
+        raise RuntimeError(
+            f"생성 결과 형식 검증에 실패했습니다: {error_message}"
+        )
+
+    return corrected_result
+
+
+def print_result(
+    command: str,
+    result: str,
+) -> None:
+    """검증된 생성 결과를 터미널에 출력한다.
+
+    Args:
+        command: commit 또는 pr 명령.
+        result: 검증된 AI 생성 결과.
+    """
+    if command == "commit":
+        title, body = parse_commit_result(result)
+
+        print()
+        print("--- Commit Message ---")
+        print(title)
+        print()
+
+        if body:
+            print(body)
+
+        print("----------------------")
+        return
+
+    title, body = parse_pr_result(result)
+
+    print()
+    print("--- PR Title ---")
+    print(title)
+    print()
+    print("--- PR Body ---")
+    print(body)
+    print("----------------")
+
+
 def main() -> None:
     """Git 변경 사항을 기반으로 AI 생성 결과를 출력한다."""
     args = parse_arguments()
@@ -113,23 +220,21 @@ def main() -> None:
         )
 
         print("[INFO] Git 변경 사항 수집 완료")
-        print("[INFO] AI API 요청 중...")
 
-        result = call_ai_api(
-            prompt=prompt,
-            model=args.model,
-            temperature=args.temperature,
-            max_tokens=args.max_tokens,
+        result = generate_result(
+            args,
+            prompt,
         )
     except RuntimeError as error:
         print(f"[ERROR] {error}")
         return
 
     print("[DONE] 생성 완료")
-    print()
-    print("--- Generated Result ---")
-    print(result)
-    print("------------------------")
+
+    print_result(
+        args.command,
+        result,
+    )
 
 
 if __name__ == "__main__":
