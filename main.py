@@ -22,9 +22,10 @@ from validators import (
 )
 
 
-DEFAULT_MODEL = "gpt-5-mini"
+DEFAULT_MODEL = "gpt-5.4-mini"
 DEFAULT_TEMPERATURE = DEFAULT_PROVIDER_TEMPERATURE
-DEFAULT_MAX_TOKENS = 800
+DEFAULT_COMMIT_MAX_TOKENS = 800
+DEFAULT_PR_MAX_TOKENS = 2000
 
 
 def _temperature(value: str) -> float:
@@ -100,8 +101,12 @@ def parse_arguments() -> argparse.Namespace:
         "-max-tokens",
         "--max-tokens",
         type=_positive_integer,
-        default=DEFAULT_MAX_TOKENS,
-        help=f"최대 출력 토큰 수 (기본값: {DEFAULT_MAX_TOKENS})",
+        default=None,
+        help=(
+            "최대 출력 토큰 수 "
+            f"(기본값: commit={DEFAULT_COMMIT_MAX_TOKENS}, "
+            f"pr={DEFAULT_PR_MAX_TOKENS})"
+        ),
     )
     parser.add_argument(
         "-safe-mode",
@@ -111,6 +116,25 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     return parser.parse_args()
+
+
+def get_max_tokens(command: str, max_tokens: int | None) -> int:
+    """명령 유형에 따라 최대 출력 토큰 수를 결정한다.
+
+    Args:
+        command: commit 또는 pr 명령.
+        max_tokens: 사용자가 직접 지정한 최대 출력 토큰 수.
+
+    Returns:
+        API 요청에 사용할 최대 출력 토큰 수.
+    """
+    if max_tokens is not None:
+        return max_tokens
+
+    if command == "commit":
+        return DEFAULT_COMMIT_MAX_TOKENS
+
+    return DEFAULT_PR_MAX_TOKENS
 
 
 def build_prompt(
@@ -160,12 +184,17 @@ def generate_result(
     Raises:
         RuntimeError: 두 번째 생성 결과도 검증에 실패한 경우.
     """
+    max_tokens = get_max_tokens(
+        args.command,
+        args.max_tokens,
+    )
+
     print("[INFO] AI API 요청 1/2")
     result = call_ai_api(
         prompt=prompt,
         model=args.model,
         temperature=args.temperature,
-        max_tokens=args.max_tokens,
+        max_tokens=max_tokens,
     )
 
     errors = validate_result(args.command, result)
@@ -184,7 +213,7 @@ def generate_result(
         prompt=correction_prompt,
         model=args.model,
         temperature=args.temperature,
-        max_tokens=args.max_tokens,
+        max_tokens=max_tokens,
     )
     remaining_errors = validate_result(
         args.command,

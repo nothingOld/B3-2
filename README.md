@@ -93,7 +93,7 @@ python main.py --help
 | --- | --- | --- |
 | `-model`, `--model` | `gpt-5-mini` | 사용할 AI 모델 |
 | `-temperature`, `--temperature` | `1.0` | 생성 다양성(0.0~2.0) |
-| `-max-tokens`, `--max-tokens` | `800` | 최대 출력 토큰 수 |
+| `-max-tokens`, `--max-tokens` | `commit: 800`, `pr: 2000` | 최대 출력 토큰 수 |
 | `-safe-mode`, `--safe-mode` | off | 각 diff를 최대 200줄로 제한 |
 
 예시:
