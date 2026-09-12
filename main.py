@@ -3,7 +3,6 @@
 import argparse
 
 from ai_client import DEFAULT_PROVIDER_TEMPERATURE, call_ai_api
-from conventions import SUPPORTED_CONVENTIONS, get_convention_rules
 from git_utils import (
     get_git_status,
     get_staged_diff,
@@ -15,11 +14,7 @@ from prompts import (
     build_correction_prompt,
     build_pr_prompt,
 )
-from safe_mode import (
-    DEFAULT_MAX_FILES,
-    DEFAULT_MAX_LINES,
-    apply_safe_mode,
-)
+from safe_mode import MAX_DIFF_LINES, apply_safe_mode
 from validators import (
     parse_commit_result,
     parse_pr_result,
@@ -83,7 +78,6 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Git 변경 사항 기반 Commit/PR 생성 도구"
     )
-
     parser.add_argument(
         "command",
         choices=["commit", "pr"],
@@ -113,28 +107,7 @@ def parse_arguments() -> argparse.Namespace:
         "-safe-mode",
         "--safe-mode",
         action="store_true",
-        help="민감정보 마스킹 및 diff 전송 제한 적용",
-    )
-    parser.add_argument(
-        "-max-files",
-        "--max-files",
-        type=_positive_integer,
-        default=DEFAULT_MAX_FILES,
-        help=f"Safe Mode 최대 파일 수 (기본값: {DEFAULT_MAX_FILES})",
-    )
-    parser.add_argument(
-        "-max-lines",
-        "--max-lines",
-        type=_positive_integer,
-        default=DEFAULT_MAX_LINES,
-        help=f"Safe Mode 최대 diff 줄 수 (기본값: {DEFAULT_MAX_LINES})",
-    )
-    parser.add_argument(
-        "-convention",
-        "--convention",
-        choices=SUPPORTED_CONVENTIONS,
-        default="conventional",
-        help="Commit/PR 팀 컨벤션 (기본값: conventional)",
+        help=f"AI에 전달할 diff를 최대 {MAX_DIFF_LINES}줄로 제한",
     )
 
     return parser.parse_args()
@@ -145,7 +118,6 @@ def build_prompt(
     status: str,
     unstaged_diff: str,
     staged_diff: str,
-    convention_rules: str,
 ) -> str:
     """명령에 맞는 AI 프롬프트를 생성한다.
 
@@ -154,7 +126,6 @@ def build_prompt(
         status: Git 변경 파일 목록.
         unstaged_diff: 스테이징되지 않은 변경 내용.
         staged_diff: 스테이징된 변경 내용.
-        convention_rules: 팀 컨벤션 규칙.
 
     Returns:
         AI API에 전달할 프롬프트.
@@ -164,28 +135,24 @@ def build_prompt(
             status,
             unstaged_diff,
             staged_diff,
-            convention_rules,
         )
 
     return build_pr_prompt(
         status,
         unstaged_diff,
         staged_diff,
-        convention_rules,
     )
 
 
 def generate_result(
     args: argparse.Namespace,
     prompt: str,
-    convention_rules: str,
 ) -> str:
     """AI 결과를 생성하고 형식을 검증한다.
 
     Args:
         args: CLI 인자.
         prompt: 최초 생성 프롬프트.
-        convention_rules: 팀 컨벤션 규칙.
 
     Returns:
         형식 검증을 통과한 AI 생성 결과.
@@ -212,7 +179,6 @@ def generate_result(
         args.command,
         result,
         errors,
-        convention_rules,
     )
     corrected_result = call_ai_api(
         prompt=correction_prompt,
@@ -283,35 +249,25 @@ def main() -> None:
         staged_diff = get_staged_diff()
 
         if args.safe_mode:
-            status, unstaged_diff, staged_diff = apply_safe_mode(
-                status,
+            unstaged_diff, staged_diff = apply_safe_mode(
                 unstaged_diff,
                 staged_diff,
-                args.max_files,
-                args.max_lines,
             )
             print(
                 "[INFO] Safe Mode 적용: "
-                f"최대 {args.max_files}개 파일, "
-                f"각 diff 최대 {args.max_lines}줄"
+                f"각 diff 최대 {MAX_DIFF_LINES}줄"
             )
 
-        convention_rules = get_convention_rules(args.convention)
         prompt = build_prompt(
             args.command,
             status,
             unstaged_diff,
             staged_diff,
-            convention_rules,
         )
 
         print("[INFO] Git 변경 사항 수집 완료")
-        result = generate_result(
-            args,
-            prompt,
-            convention_rules,
-        )
-    except (RuntimeError, ValueError) as error:
+        result = generate_result(args, prompt)
+    except RuntimeError as error:
         print(f"[ERROR] {error}")
         return
 

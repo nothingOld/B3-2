@@ -5,7 +5,6 @@ def build_commit_prompt(
     status: str,
     unstaged_diff: str,
     staged_diff: str,
-    convention_rules: str,
 ) -> str:
     """Git 변경 사항을 기반으로 Commit 생성 프롬프트를 만든다.
 
@@ -13,7 +12,6 @@ def build_commit_prompt(
         status: Git 변경 파일 목록.
         unstaged_diff: 스테이징되지 않은 변경 내용.
         staged_diff: 스테이징된 변경 내용.
-        convention_rules: 적용할 팀 컨벤션 규칙.
 
     Returns:
         Commit 메시지 생성을 위한 프롬프트.
@@ -36,8 +34,6 @@ COMMIT_BODY:
 - 실제 Git 변경 내용만 근거로 작성합니다.
 - 설명, 인사말, 코드 블록을 추가하지 않습니다.
 
-{convention_rules or "추가 팀 컨벤션 없음"}
-
 Git Status:
 {status}
 
@@ -53,7 +49,6 @@ def build_pr_prompt(
     status: str,
     unstaged_diff: str,
     staged_diff: str,
-    convention_rules: str,
 ) -> str:
     """Git 변경 사항을 기반으로 Pull Request 생성 프롬프트를 만든다.
 
@@ -61,7 +56,6 @@ def build_pr_prompt(
         status: Git 변경 파일 목록.
         unstaged_diff: 스테이징되지 않은 변경 내용.
         staged_diff: 스테이징된 변경 내용.
-        convention_rules: 적용할 팀 컨벤션 규칙.
 
     Returns:
         Pull Request 초안 생성을 위한 프롬프트.
@@ -89,8 +83,6 @@ PR_BODY:
 - 실제 Git 변경 내용만 근거로 작성합니다.
 - 설명, 인사말, 코드 블록을 추가하지 않습니다.
 
-{convention_rules or "추가 팀 컨벤션 없음"}
-
 Git Status:
 {status}
 
@@ -106,7 +98,6 @@ def build_correction_prompt(
     command: str,
     generated_text: str,
     errors: list[str],
-    convention_rules: str,
 ) -> str:
     """형식 검증에 실패한 결과의 보정 프롬프트를 만든다.
 
@@ -114,7 +105,6 @@ def build_correction_prompt(
         command: commit 또는 pr 명령.
         generated_text: 기존 AI 생성 결과.
         errors: 형식 검증 오류 목록.
-        convention_rules: 적용할 팀 컨벤션 규칙.
 
     Returns:
         형식 수정 요청 프롬프트.
@@ -163,8 +153,6 @@ PR_BODY:
 다음 형식에 맞게 다시 작성하세요.
 
 {format_rule}
-
-{convention_rules or "추가 팀 컨벤션 없음"}
 
 기존 내용의 의미는 유지하고 결과만 출력하세요.
 """.strip()
